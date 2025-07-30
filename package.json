@@ -4,6 +4,7 @@
   "description": "remote debugger by chrome devtools",
   "main": "index.js",
   "scripts": {
+    "dev": "concurrently \"npm run serve\" \"npm run client\"",
     "client": "webpack serve --config ./src/client/webpack.config.dev.js",
     "build": "webpack --progress --config ./src/client/webpack.config.js",
     "serve": "cross-env NODE_ENV=development npx nodemon ./src/server/index.js",
@@ -31,6 +32,7 @@
     "@babel/preset-env": "^7.21.4",
     "@vue/compiler-sfc": "^3.2.47",
     "babel-loader": "^9.1.2",
+    "concurrently": "^9.2.0",
     "cross-env": "^7.0.3",
     "css-loader": "^6.7.3",
     "dotenv-webpack": "^8.0.1",

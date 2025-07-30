@@ -108,16 +108,12 @@ https://github.com/Nice-PLQ/devtools-remote-debugger/assets/10710341/93c5cbb4-c1
 
 ## How to start?
 
-Open the command terminal and start the following two commands
+Open the command terminal and start the following commands
 
 ### 1. Start Serve
 
 ```sh
-#1. Start the node service
-npm run serve
-
-# 2. Start a new terminal
-npm run client
+npm run dev
 ```
 
 ### 2. Open the debug page

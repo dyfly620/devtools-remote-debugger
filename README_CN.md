@@ -95,16 +95,12 @@ https://github.com/Nice-PLQ/devtools-remote-debugger/assets/10710341/93c5cbb4-c1
 
 ## 本地开发
 
-打开命令终端，启动以下两个命令
+打开命令终端，启动以下命令
 
 ### 1、启动服务
 
 ```sh
-# 1、启动node服务
-npm run serve
-
-# 2、新开终端启动
-npm run client
+yarn dev
 ```
 
 ### 2、打开调试页面
