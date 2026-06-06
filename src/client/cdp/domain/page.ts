@@ -5,13 +5,13 @@ import { Event } from './protocol';
 export default class Page extends BaseDomain {
   namespace = 'Page';
 
-  frame = new Map();
+  frame = new Map<string, string>();
 
-  /**
+  static MAINFRAME_ID = 1;
 
-   * @public
-   */
-  enable() {
+  private intervalTimer: ReturnType<typeof setInterval> | null = null;
+
+  enable(): void {
     const xhr = new XMLHttpRequest();
     xhr.$$requestType = 'Document';
     xhr.onload = () => {
@@ -25,11 +25,7 @@ export default class Page extends BaseDomain {
     xhr.send();
   }
 
-  /**
-   * Get root frame
-   * @public
-   */
-  getResourceTree() {
+  getResourceTree(): { frameTree: { frame: Record<string, unknown>; resources: never[] } } {
     return {
       frameTree: {
         frame: {
@@ -43,19 +39,13 @@ export default class Page extends BaseDomain {
     };
   }
 
-  /**
-   * Get html content
-   * @public
-   * @param {Object} param
-   * @param {String} param.url page url
-   */
-  getResourceContent({ url }) {
+  getResourceContent({ url }: { url: string }): { content: string | undefined } {
     return {
       content: this.frame.get(url),
     };
   }
 
-  startScreencast() {
+  startScreencast(): void {
     const captureScreen = () => {
       if (document.hidden) return;
       ScreenPreview.captureScreen().then((base64) => {
@@ -83,10 +73,10 @@ export default class Page extends BaseDomain {
     this.intervalTimer = setInterval(captureScreen, 1000);
   }
 
-  stopScreencast() {
+  stopScreencast(): void {
     if (this.intervalTimer) {
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
     }
   }
-};
+}

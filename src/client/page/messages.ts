@@ -1,4 +1,10 @@
-export default {
+interface Messages {
+  [locale: string]: {
+    [key: string]: string;
+  };
+}
+
+const messages: Messages = {
   zh: {
     tips: '只支持Chrome/Edge浏览器进行调试',
     favicon: '图标',
@@ -38,3 +44,5 @@ export default {
     notice_4: 'Add crossorigin resource domain names above need to support',
   },
 };
+
+export default messages;

@@ -1,41 +1,30 @@
 import BaseDomain from './domain';
 import { Event } from './protocol';
+
+interface StorageId {
+  isLocalStorage: boolean;
+  securityOrigin: string;
+  storageKey: string;
+}
+
 export default class DomStorage extends BaseDomain {
   namespace = 'DOMStorage';
 
-  /**
-   * @static
-   * @param {Boolean} isLocalStorage
-   */
-  static getStorage({ isLocalStorage }) {
-    return isLocalStorage ? localStorage : sessionStorage;
+  static getStorage(storageId: StorageId | { isLocalStorage: boolean }): Storage {
+    return storageId.isLocalStorage ? localStorage : sessionStorage;
   }
 
-  /**
-   * @public
-   */
-  enable() {
+  enable(): void {
     this.hookStorage(localStorage);
     this.hookStorage(sessionStorage);
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {String} param.storageId
-   */
-  getDOMStorageItems({ storageId }) {
+  getDOMStorageItems({ storageId }: { storageId: StorageId }): { entries: [string, string][] } {
     const storage = DomStorage.getStorage(storageId);
     return { entries: Object.entries(storage) };
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {String} param.key
-   * @param {String} param.storageId
-   */
-  removeDOMStorageItem({ key, storageId }) {
+  removeDOMStorageItem({ key, storageId }: { key: string; storageId: StorageId }): void {
     const storage = DomStorage.getStorage(storageId);
     storage.removeItem(key);
 
@@ -45,12 +34,7 @@ export default class DomStorage extends BaseDomain {
     });
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {String} param.storageId
-   */
-  clear({ storageId }) {
+  clear({ storageId }: { storageId: StorageId }): void {
     const storage = DomStorage.getStorage(storageId);
     storage.clear();
 
@@ -60,15 +44,15 @@ export default class DomStorage extends BaseDomain {
     });
   }
 
-  setDOMStorageItem({ storageId, key, value }) {
+  setDOMStorageItem({ storageId, key, value }: { storageId: StorageId; key: string; value: string }): void {
     const storage = DomStorage.getStorage(storageId);
     storage.setItem(key, value);
   }
 
-  hookStorage(storage) {
+  private hookStorage(storage: Storage): void {
     const _this = this;
 
-    const storageId = {
+    const storageId: StorageId = {
       isLocalStorage: storage === localStorage,
       securityOrigin: location.origin,
       storageKey: location.origin,
@@ -80,7 +64,7 @@ export default class DomStorage extends BaseDomain {
       clear: nativeClear,
     } = Storage.prototype;
 
-    Storage.prototype.setItem = function (key, newValue) {
+    Storage.prototype.setItem = function (this: Storage, key: string, newValue: string) {
       const isKeyExisted = Object.keys(storage).includes(key);
       const oldValue = this.getItem(key);
       nativeSetItem.call(this, key, newValue);
@@ -96,7 +80,7 @@ export default class DomStorage extends BaseDomain {
       });
     };
 
-    Storage.prototype.removeItem = function (key) {
+    Storage.prototype.removeItem = function (this: Storage, key: string) {
       nativeRemoveItem.call(this, key);
 
       _this.send({
@@ -105,7 +89,7 @@ export default class DomStorage extends BaseDomain {
       });
     };
 
-    Storage.prototype.clear = function () {
+    Storage.prototype.clear = function (this: Storage) {
       nativeClear.call(this);
 
       _this.send({
@@ -114,4 +98,4 @@ export default class DomStorage extends BaseDomain {
       });
     };
   }
-};
+}

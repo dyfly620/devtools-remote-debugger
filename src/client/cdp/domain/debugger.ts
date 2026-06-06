@@ -6,15 +6,12 @@ export default class Debugger extends BaseDomain {
   namespace = 'Debugger';
 
   // collection of javascript scripts
-  scripts = new Map();
+  scripts = new Map<string, string>();
 
   // Unique id for javascript scripts
   scriptId = 0;
 
-  /**
-   * @public
-   */
-  enable() {
+  enable(): void {
     const scripts = this.collectScripts();
     scripts.forEach(({ scriptId, url }) => {
       this.send({
@@ -32,24 +29,13 @@ export default class Debugger extends BaseDomain {
     });
   }
 
-  /**
-   * Get the content of the js script file
-   * @public
-   * @param {Object} param
-   * @param {Number} param.scriptId
-   */
-  getScriptSource({ scriptId }) {
+  getScriptSource({ scriptId }: { scriptId: string }): { scriptSource: string | undefined } {
     return {
       scriptSource: this.getScriptSourceById(scriptId)
     };
   }
 
-  /**
-   * fetch the source content of the dynamic script file
-   * @public
-   * @param {string} url script file url address
-   */
-  getDynamicScript(url) {
+  getDynamicScript(url: string): void {
     const scriptId = this.getScriptId();
     this.fetchScriptSource(scriptId, getAbsolutePath(url));
     this.send({
@@ -66,13 +52,9 @@ export default class Debugger extends BaseDomain {
     });
   }
 
-  /**
-   * Collect all scripts of the page
-   * @private
-   */
-  collectScripts() {
+  private collectScripts(): Array<{ scriptId: string; url: string }> {
     const scriptElements = document.querySelectorAll('script');
-    const ret = [];
+    const ret: Array<{ scriptId: string; url: string }> = [];
     scriptElements.forEach((script) => {
       const scriptId = this.getScriptId();
       const src = script.getAttribute('src');
@@ -85,13 +67,7 @@ export default class Debugger extends BaseDomain {
     return ret;
   }
 
-  /**
-   * Fetch javascript file source content
-   * @private
-   * @param {Number} scriptId javascript script unique id
-   * @param {String} url javascript file url
-   */
-  fetchScriptSource(scriptId, url) {
+  private fetchScriptSource(scriptId: string, url: string): void {
     const xhr = new XMLHttpRequest();
     xhr.$$requestType = 'Script';
     xhr.onload = () => {
@@ -105,22 +81,12 @@ export default class Debugger extends BaseDomain {
     xhr.send();
   }
 
-  /**
-   * Get javascript content
-   * @private
-   * @param {Object} param
-   * @param {Number} param.scriptId javascript script unique id
-   */
-  getScriptSourceById(scriptId) {
+  private getScriptSourceById(scriptId: string): string | undefined {
     return this.scripts.get(scriptId);
   }
 
-  /**
-   * Get unique id of javascript script
-   * @private
-   */
-  getScriptId() {
+  private getScriptId(): string {
     this.scriptId += 1;
     return `${this.scriptId}`;
   }
-};
+}

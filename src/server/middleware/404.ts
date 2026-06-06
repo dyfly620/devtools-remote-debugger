@@ -1,4 +1,6 @@
-const notFound = async (ctx, next) => {
+import { Context, Next } from 'koa';
+
+const notFound = async (ctx: Context, next: Next): Promise<void> => {
   try {
     await next();
     const status = ctx.status || 404;
@@ -6,11 +8,11 @@ const notFound = async (ctx, next) => {
       ctx.type = 'html';
       ctx.body = 'Not Found';
     }
-  } catch (err) {
+  } catch (err: any) {
     ctx.status = err.status || 500;
     ctx.type = 'html';
     ctx.body = 'error';
   }
 };
 
-module.exports = notFound;
+export default notFound;

@@ -1,7 +1,7 @@
 // Implemented CDP
-export default {
+const protocol: Record<string, string[]> = {
   CSS: ['enable', 'getStyleSheetText', 'getMatchedStylesForNode', 'getComputedStyleForNode',
-    'getInlineStylesForNode', 'getDynamicLink', 'addRule', 'createStyleSheet', 'setStyleTexts',],
+    'getInlineStylesForNode', 'getDynamicLink', 'addRule', 'createStyleSheet', 'setStyleTexts'],
   Debugger: ['enable', 'getScriptSource', 'getDynamicScript'],
   DOMStorage: ['enable', 'getDOMStorageItems', 'removeDOMStorageItem', 'clear', 'setDOMStorageItem'],
   Storage: ['getStorageKeyForFrame'],
@@ -16,11 +16,14 @@ export default {
   Overlay: ['enable', 'highlightNode', 'hideHighlight', 'setInspectMode'],
   Page: ['enable', 'startScreencast', 'stopScreencast', 'getResourceTree', 'getResourceContent'],
   Runtime: ['enable', 'evaluate', 'getProperties', 'releaseObject', 'callFunctionOn'],
-  ScreenPreview: ['startPreview', 'stopPreview'] // ScreenPreview is a custom protocol
+  ScreenPreview: ['startPreview', 'stopPreview'], // ScreenPreview is a custom protocol
 };
+
+export default protocol;
 
 export const Event = {
   styleSheetAdded: 'CSS.styleSheetAdded',
+  styleSheetChanged: 'CSS.styleSheetChanged',
 
   scriptParsed: 'Debugger.scriptParsed',
 

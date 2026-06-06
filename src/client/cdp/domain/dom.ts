@@ -10,34 +10,30 @@ export default class Dom extends BaseDomain {
 
   searchId = 0;
 
-  searchRet = new Map();
+  searchRet = new Map<number, Element[]>();
 
   currentSearchKey = '';
 
-  /**
-   * set $, $$ and $x methods
-   * @static
-   */
-  static set$Function() {
+  static set$Function(): void {
     if (typeof window.$ !== 'function') {
-      window.$ = function (selector) {
+      window.$ = function (selector: string) {
         return document.querySelector(selector);
       };
     }
 
     if (typeof window.$$ !== 'function') {
-      window.$$ = function (selector) {
+      window.$$ = function (selector: string) {
         return document.querySelectorAll(selector);
       };
     }
 
     if (typeof window.$x !== 'function') {
-      window.$x = function (selector) {
+      window.$x = function (selector: string) {
         const xpathResult = document.evaluate(selector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-        const elements = [];
+        const elements: Element[] = [];
 
         for (let i = 0; i < xpathResult.snapshotLength; i++) {
-          elements.push(xpathResult.snapshotItem(i));
+          elements.push(xpathResult.snapshotItem(i) as Element);
         }
 
         return elements;
@@ -45,33 +41,20 @@ export default class Dom extends BaseDomain {
     }
   }
 
-  /**
-   * Enable Dom domain
-   * @public
-   */
-  enable() {
+  enable(): void {
     nodes.init();
     this.nodeObserver();
     this.setDomInspect();
     Dom.set$Function();
   }
 
-  /**
-   * Get root's documentation
-   * @public
-   */
-  getDocument() {
+  getDocument(): { root: ReturnType<typeof nodes.collectNodes> } {
     return {
       root: nodes.collectNodes(document),
     };
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {Number} nodeId DOM Node Id
-   */
-  requestChildNodes({ nodeId }) {
+  requestChildNodes({ nodeId }: { nodeId: number }): void {
     if (nodes.hasRequestedChildNode.has(nodeId)) {
       return;
     }
@@ -80,41 +63,23 @@ export default class Dom extends BaseDomain {
       method: Event.setChildNodes,
       params: {
         parentId: nodeId,
-        nodes: nodes.getChildNodes(nodes.getNodeById(nodeId), 2)
+        nodes: nodes.getChildNodes(nodes.getNodeById(nodeId)!, 2)
       }
     });
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {Number} nodeId DOM Node Id
-   */
-  getOuterHTML({ nodeId }) {
+  getOuterHTML({ nodeId }: { nodeId: number }): { outerHTML: string } {
     return {
-      outerHTML: nodes.getNodeById(nodeId).outerHTML
+      outerHTML: (nodes.getNodeById(nodeId) as Element).outerHTML
     };
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {Number} nodeId DOM Node Id
-   * @param {String} outerHTML
-   */
-  setOuterHTML({ nodeId, outerHTML }) {
-    nodes.getNodeById(nodeId).outerHTML = outerHTML;
+  setOuterHTML({ nodeId, outerHTML }: { nodeId: number; outerHTML: string }): void {
+    (nodes.getNodeById(nodeId) as Element).outerHTML = outerHTML;
   }
 
-  /**
-   * Set the text property of the node
-   * @public
-   * @param {Object} param
-   * @param {Number} nodeId DOM Node Id
-   * @param {String} text attribute text，eg: class="test" style="color:red;" data-index="1"
-   */
-  setAttributesAsText({ nodeId, text }) {
-    const node = nodes.getNodeById(nodeId);
+  setAttributesAsText({ nodeId, text }: { nodeId: number; text: string }): void {
+    const node = nodes.getNodeById(nodeId) as Element;
     if (text) {
       text.split(' ').filter(item => item)
         .forEach((item) => {
@@ -126,52 +91,28 @@ export default class Dom extends BaseDomain {
     }
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {Number} objectId remoteObject id
-   */
-  requestNode({ objectId }) {
-    const node = getObjectById(objectId);
+  requestNode({ objectId }: { objectId: string }): { nodeId: number } {
+    const node = getObjectById(objectId) as Node;
     const nodeId = nodes.getIdByNode(node);
     return { nodeId };
   }
 
-  /**
-   * Set the currently selected node
-   * @public
-   * @param {Object} param
-   * @param {Number} nodeId DOM Node Id
-   */
-  setInspectedNode({ nodeId }) {
-    window.$0 = nodes.getNodeById(nodeId);
+  setInspectedNode({ nodeId }: { nodeId: number }): void {
+    window.$0 = nodes.getNodeById(nodeId) as Element;
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {Number} nodeId DOM Node Id
-   */
-  removeNode({ nodeId }) {
-    const node = nodes.getNodeById(nodeId);
+  removeNode({ nodeId }: { nodeId: number }): void {
+    const node = nodes.getNodeById(nodeId) as Element;
     node?.parentNode?.removeChild(node);
   }
 
-  /**
-   * @public
-   */
-  pushNodesByBackendIdsToFrontend({ backendNodeIds }) {
+  pushNodesByBackendIdsToFrontend({ backendNodeIds }: { backendNodeIds: number[] }): { nodeIds: number[] } {
     return {
       nodeIds: backendNodeIds
     };
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {String} query search keyword
-   */
-  performSearch({ query }) {
+  performSearch({ query }: { query: string }): { searchId: number; resultCount: number } {
     let ret = this.searchRet.get(this.searchId);
 
     if (this.currentSearchKey !== query) {
@@ -181,13 +122,14 @@ export default class Dom extends BaseDomain {
         if (!nodes.isNode(node)) return false;
 
         // element node
-        if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase().includes(query)) {
+        if (node.nodeType === Node.ELEMENT_NODE && node.nodeName.toLowerCase().includes(query)) {
           return true;
         }
 
         // match attributes
-        for (let i = 0; i < node.attributes.length; i++) {
-          const curr = node.attributes[i];
+        const el = node as Element;
+        for (let i = 0; i < el.attributes.length; i++) {
+          const curr = el.attributes[i];
           if (curr.name.includes(query) || curr.value.includes(query)) {
             return true;
           }
@@ -202,16 +144,13 @@ export default class Dom extends BaseDomain {
 
     return {
       searchId: this.searchId,
-      resultCount: ret.length,
+      resultCount: ret ? ret.length : 0,
     };
   }
 
-  /**
-  * @public
-  */
-  getSearchResults({ fromIndex, toIndex, searchId }) {
-    const ret = this.searchRet.get(searchId).slice(fromIndex, toIndex);
-    const nodeIds = [];
+  getSearchResults({ fromIndex, toIndex, searchId }: { fromIndex: number; toIndex: number; searchId: number }): { nodeIds: number[] } {
+    const ret = this.searchRet.get(searchId)!.slice(fromIndex, toIndex);
+    const nodeIds: number[] = [];
     ret.forEach(node => {
       this.expandNode(node);
       nodeIds.push(nodes.getIdByNode(node));
@@ -220,17 +159,11 @@ export default class Dom extends BaseDomain {
     return { nodeIds };
   }
 
-  /**
-   * @public
-   */
-  discardSearchResults({ searchId }) {
+  discardSearchResults({ searchId }: { searchId: number }): void {
     this.searchRet.delete(searchId);
   }
 
-  /**
-   * @public
-   */
-  getNodeForLocation({ x, y }) {
+  getNodeForLocation({ x, y }: { x: number; y: number }): { frameId: number; backendNodeId: number; nodeId: number } | undefined {
     const hoverNode = document.elementFromPoint(x, y);
     if (hoverNode) {
       this.expandNode(hoverNode);
@@ -243,23 +176,17 @@ export default class Dom extends BaseDomain {
     }
   }
 
-  /**
-   * @public
-   */
-  setNodeValue({ nodeId, value }) {
-    const node = nodes.getNodeById(nodeId);
+  setNodeValue({ nodeId, value }: { nodeId: number; value: string }): void {
+    const node = nodes.getNodeById(nodeId)!;
     node.nodeValue = value;
   }
 
-  /**
-   * @public
-   */
-  getBoxModel({ nodeId }) {
-    const node = nodes.getNodeById(nodeId);
+  getBoxModel({ nodeId }: { nodeId: number }): { model: Record<string, unknown> } {
+    const node = nodes.getNodeById(nodeId) as Element;
     const styles = window.getComputedStyle(node);
-    const margin = Overlay.getStylePropertyValue(['margin-top', 'margin-right', 'margin-bottom', 'margin-left'], styles);
-    const padding = Overlay.getStylePropertyValue(['padding-top', 'padding-right', 'padding-bottom', 'padding-left'], styles);
-    const border = Overlay.getStylePropertyValue(['border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width'], styles);
+    const margin = Overlay.getStylePropertyValue(['margin-top', 'margin-right', 'margin-bottom', 'margin-left'], styles) as number[];
+    const padding = Overlay.getStylePropertyValue(['padding-top', 'padding-right', 'padding-bottom', 'padding-left'], styles) as number[];
+    const border = Overlay.getStylePropertyValue(['border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width'], styles) as number[];
 
     const { left, right, top, bottom, width, height } = node.getBoundingClientRect();
 
@@ -295,36 +222,33 @@ export default class Dom extends BaseDomain {
     };
   }
 
-  /**
-   * @private
-   */
-  expandNode(node) {
-    const nodeIds = [];
-    while (!nodes.hasNode(node)) {
-      const nodeId = nodes.getIdByNode(node);
+  private expandNode(node: Node): void {
+    const nodeIds: number[] = [];
+    let currentNode: Node | null = node;
+    while (!nodes.hasNode(currentNode)) {
+      const nodeId = nodes.getIdByNode(currentNode);
       nodeIds.unshift(nodeId);
-      node = node.parentNode;
+      currentNode = currentNode.parentNode;
     }
 
-    nodeIds.unshift(nodes.getIdByNode(node));
+    if (currentNode) {
+      nodeIds.unshift(nodes.getIdByNode(currentNode));
+    }
 
     nodeIds.forEach((nodeId) => {
       this.requestChildNodes({ nodeId });
     });
   }
 
-  /**
-   * @private
-   */
-  setDomInspect() {
+  private setDomInspect(): void {
     document.addEventListener('click', (e) => {
       if (window.$$inspectMode !== 'searchForNode') return;
 
       e.stopPropagation();
       e.preventDefault();
 
-      const previousNode = e.target.parentNode;
-      const currentNodeId = nodes.getIdByNode(e.target);
+      const previousNode = (e.target as Element).parentNode!;
+      const currentNodeId = nodes.getIdByNode(e.target as Node);
 
       this.expandNode(previousNode);
 
@@ -342,18 +266,15 @@ export default class Dom extends BaseDomain {
         }
       });
 
-      document.getElementById(DEVTOOL_OVERLAY).style.display = 'none';
+      document.getElementById(DEVTOOL_OVERLAY)!.style.display = 'none';
     }, true);
   }
 
-  /**
-   * @private
-   */
-  nodeObserver() {
-    const isDevtoolMutation = ({ target, addedNodes, removedNodes }) => {
-      if (IGNORE_NODE.includes(target.getAttribute?.('class'))) return true;
-      if (IGNORE_NODE.includes(addedNodes[0]?.getAttribute?.('class'))) return true;
-      if (IGNORE_NODE.includes(removedNodes[0]?.getAttribute?.('class'))) return true;
+  private nodeObserver(): void {
+    const isDevtoolMutation = ({ target, addedNodes, removedNodes }: MutationRecord): boolean => {
+      if (IGNORE_NODE.includes((target as Element).getAttribute?.('class') || '')) return true;
+      if (IGNORE_NODE.includes((addedNodes[0] as Element)?.getAttribute?.('class') || '')) return true;
+      if (IGNORE_NODE.includes((removedNodes[0] as Element)?.getAttribute?.('class') || '')) return true;
       return false;
     };
 
@@ -385,7 +306,7 @@ export default class Dom extends BaseDomain {
                 params: {
                   node: nodes.collectNodes(node, 0),
                   parentNodeId,
-                  previousNodeId: nodes.getIdByNode(nodes.getPreviousNode(node))
+                  previousNodeId: nodes.getIdByNode(nodes.getPreviousNode(node)!)
                 }
               });
             });
@@ -403,9 +324,8 @@ export default class Dom extends BaseDomain {
             });
 
             break;
-          case 'attributes':
-            // eslint-disable-next-line
-            const value = target.getAttribute(attributeName);
+          case 'attributes': {
+            const value = (target as Element).getAttribute(attributeName!);
             this.send({
               method: value ? Event.attributeModified : Event.attributeRemoved,
               params: {
@@ -415,6 +335,7 @@ export default class Dom extends BaseDomain {
               }
             });
             break;
+          }
 
           case 'characterData':
             this.send({

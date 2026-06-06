@@ -1,22 +1,41 @@
-const WebSocket = require('ws');
-const chalk = require('chalk');
-const dayjs = require('dayjs');
+import WebSocket, { Server as WebSocketServer } from 'ws';
+import chalk from 'chalk';
+import dayjs from 'dayjs';
+import http from 'http';
 
-const getTime = () => dayjs().format('YYYY-MM-DD HH:mm:ss');
+const getTime = (): string => dayjs().format('YYYY-MM-DD HH:mm:ss');
+
+interface ClientInfo {
+  ws: WebSocket;
+  id: string;
+  pageUrl: string;
+  ua: string;
+  time: string;
+  title: string;
+  favicon: string;
+}
+
+interface DevtoolInfo {
+  ws: WebSocket;
+  id: string;
+  clientId: string;
+  client?: ClientInfo;
+}
 
 class SocketServer {
-  constructor() {
-    this.clients = {};
-    this.devtools = {};
+  clients: Record<string, ClientInfo> = {};
+  devtools: Record<string, DevtoolInfo> = {};
+  wss: WebSocketServer;
 
-    const wss = new WebSocket.Server({ noServer: true });
+  constructor() {
+    const wss = new WebSocketServer({ noServer: true });
     this.wss = wss;
   }
 
-  initSocketServer(server) {
+  initSocketServer(server: http.Server): void {
     const { wss } = this;
     server.on('upgrade', (request, socket, head) => {
-      const urlParse = new URL(request.url, 'http://0.0.0.0');
+      const urlParse = new URL(request.url!, 'http://0.0.0.0');
       const pathname = urlParse.pathname.replace('/remote/debug', '');
       const [, from, id] = pathname.split('/');
 
@@ -27,20 +46,20 @@ class SocketServer {
 
         // Create a connection for client sources
         if (from === 'client') {
-          const pageUrl = searchParams.get('url');
+          const pageUrl = searchParams.get('url') || '';
           this.createClientSocketConnect(ws, {
             id,
             pageUrl,
-            ua: searchParams.get('ua'),
-            time: searchParams.get('time'),
-            title: searchParams.get('title'),
-            favicon: searchParams.get('favicon'),
+            ua: searchParams.get('ua') || '',
+            time: searchParams.get('time') || '',
+            title: searchParams.get('title') || '',
+            favicon: searchParams.get('favicon') || '',
           });
         } else {
           // Create a connection sourced from devtools
           this.createDevtoolsSocketConnect(ws, {
             id,
-            clientId: searchParams.get('clientId'),
+            clientId: searchParams.get('clientId') || '',
           });
         }
       });
@@ -48,11 +67,11 @@ class SocketServer {
   }
 
   // Create a client ws connection
-  createClientSocketConnect(ws, connectInfo) {
+  createClientSocketConnect(ws: WebSocket, connectInfo: Omit<ClientInfo, 'ws'>): void {
     const { id } = connectInfo;
     console.log(`${getTime()} ${chalk.bgCyan(chalk.black('client:'))} ${id} ${chalk.green('')}`);
 
-    const sendToDevtools = (message) => {
+    const sendToDevtools = (message: WebSocket.Data): void => {
       Object.values(this.devtools).forEach((devtool) => {
         if (devtool.clientId === id) {
           devtool.ws.send(message);
@@ -60,7 +79,7 @@ class SocketServer {
       });
     };
 
-    const closeToDevtools = () => {
+    const closeToDevtools = (): void => {
       Object.values(this.devtools).forEach((devtool) => {
         if (devtool.clientId === id) {
           devtool.ws.close();
@@ -81,13 +100,13 @@ class SocketServer {
   }
 
   // Create a devtools ws connection
-  createDevtoolsSocketConnect(ws, connectInfo) {
+  createDevtoolsSocketConnect(ws: WebSocket, connectInfo: Omit<DevtoolInfo, 'ws' | 'client'>): void {
     const { id, clientId } = connectInfo;
     console.log(`${getTime()} ${chalk.bgMagenta(chalk.black('devtools:'))} ${id} ${chalk.green('connected')}`);
 
     const client = this.clients[clientId];
 
-    const devtool = { ws, client, ...connectInfo };
+    const devtool: DevtoolInfo = { ws, client, ...connectInfo };
     this.devtools[id] = devtool;
 
     ws.on('close', () => {
@@ -97,10 +116,10 @@ class SocketServer {
 
     if (!client) return;
 
-    ws.on('message', (message) => {
+    ws.on('message', (message: WebSocket.Data) => {
       client.ws.send(message);
     });
   }
 }
 
-module.exports = SocketServer;
+export default SocketServer;

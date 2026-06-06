@@ -6,9 +6,12 @@ import { Event } from './protocol';
 export default class ScreenPreview extends BaseDomain {
   namespace = 'ScreenPreview';
 
-  static captureScreen() {
-    const renderScreen = () => window.snapdom.toCanvas(document.body)
-      .then(canvas => canvas.toDataURL('image/jpeg'));
+  private observerInst: MutationObserver | null = null;
+
+  static captureScreen(): Promise<string> {
+    const renderScreen = (): Promise<string> =>
+      window.snapdom!.toCanvas(document.body)
+        .then(canvas => canvas.toDataURL('image/jpeg'));
 
     if (window.snapdom) {
       return renderScreen();
@@ -17,22 +20,18 @@ export default class ScreenPreview extends BaseDomain {
     return loadScript('https://unpkg.com/@zumer/snapdom@1.9.13/dist/snapdom.min.js').then(renderScreen);
   }
 
-  /**
-   * Start live preview
-   * @public
-   */
-  startPreview() {
+  startPreview(): void {
     const selector = 'link[rel="stylesheet"],style';
     const styles = document.querySelectorAll(selector);
     let counts = styles.length;
 
-    const joinStyleTags = (styles) => {
+    const joinStyleTags = (styles: NodeListOf<Element>): string => {
       let tags = '';
       Array.from(styles).forEach(style => {
         const tag = style.tagName.toLowerCase();
 
         if (tag === 'link') {
-          tags += `<link href="${style.href}" rel="stylesheet">`;
+          tags += `<link href="${(style as HTMLLinkElement).href}" rel="stylesheet">`;
         }
 
         if (tag === 'style') {
@@ -56,7 +55,7 @@ export default class ScreenPreview extends BaseDomain {
     // Observe the changes of the document
     this.observerInst = new MutationObserver(throttle(() => {
       const curStyles = document.querySelectorAll(selector);
-      let head;
+      let head: string | undefined;
       if (curStyles.length !== counts) {
         counts = curStyles.length;
         head = joinStyleTags(curStyles);
@@ -88,12 +87,8 @@ export default class ScreenPreview extends BaseDomain {
     });
   }
 
-  /**
-   * stop live preview
-   * @public
-   */
-  stopPreview() {
-    this.observerInst && this.observerInst.disconnect();
+  stopPreview(): void {
+    if (this.observerInst) this.observerInst.disconnect();
     window.removeEventListener('scroll', this.syncScroll);
     ['mousemove', 'mousedown', 'mouseup', 'touchmove', 'touchstart', 'touchend'].forEach(event => {
       window.removeEventListener(event, this.syncMouse);
@@ -110,21 +105,26 @@ export default class ScreenPreview extends BaseDomain {
         scrollLeft,
       },
     });
-  }, 100);
+  }, 100) as () => void;
 
-  syncMouse = throttle((e) => {
+  syncMouse = throttle((e: MouseEvent | TouchEvent) => {
     const type = e.type || 'mousemove';
-    let left = e.clientX;
-    let top = e.clientY;
+    let left: number;
+    let top: number;
 
     if (type.includes('touch')) {
-      left = (e.touches[0] || e.changedTouches[0]).clientX;
-      top = (e.touches[0] || e.changedTouches[0]).clientY;
+      const touchEvent = e as TouchEvent;
+      left = (touchEvent.touches[0] || touchEvent.changedTouches[0]).clientX;
+      top = (touchEvent.touches[0] || touchEvent.changedTouches[0]).clientY;
+    } else {
+      const mouseEvent = e as MouseEvent;
+      left = mouseEvent.clientX;
+      top = mouseEvent.clientY;
     }
 
     this.send({
       method: Event.syncMouse,
       params: { type, left, top },
     });
-  }, 50);
+  }, 50) as (e: MouseEvent | TouchEvent) => void;
 }

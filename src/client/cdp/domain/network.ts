@@ -4,9 +4,30 @@ import { getAbsolutePath, key2UpperCase } from '../common/utils';
 import BaseDomain from './domain';
 import { Event } from './protocol';
 
-const getTimestamp = () => Date.now() / 1000;
+const getTimestamp = (): number => Date.now() / 1000;
 
 const originFetch = window.fetch;
+
+interface SendRequest {
+  method: string;
+  url: string;
+  requestId: number;
+  headers: Record<string, string>;
+  postData?: any;
+  hasPostData?: boolean;
+}
+
+interface NetworkEventParams {
+  requestId: number;
+  url: string;
+  status?: number;
+  statusText?: string;
+  headers?: Record<string, string>;
+  headersText?: string;
+  type?: string;
+  blockedCookies: any[];
+  encodedDataLength?: number;
+}
 
 export default class Network extends BaseDomain {
   namespace = 'Network';
@@ -14,32 +35,27 @@ export default class Network extends BaseDomain {
   // the unique id of the request
   requestId = 0;
 
-  responseData = new Map();
+  responseData = new Map<number, any>();
 
-  cacheRequest = [];
+  cacheRequest: any[] = [];
 
   isEnable = false;
 
-  socketSend = (data) => {
+  socketSend = (data: any): void => {
     this.cacheRequest.push(data);
     if (this.isEnable) {
       this.send(data);
     }
   };
 
-  constructor(options) {
+  constructor(options: { socket: any }) {
     super(options);
     this.hookXhr();
     this.hookFetch();
   }
 
-  /**
-   * Format http response header
-   * @static
-   * @param {String} header http response header eg：content-type: application/json; charset=UTF-8\n date: Wed, 15 Sep 2021 07:20:26 GMT
-   */
-  static formatResponseHeader(header) {
-    const headers = {};
+  static formatResponseHeader(header: string): Record<string, string> {
+    const headers: Record<string, string> = {};
     header.split('\n').filter(val => val)
       .forEach((item) => {
         const [key, val] = item.split(':');
@@ -48,12 +64,8 @@ export default class Network extends BaseDomain {
     return headers;
   }
 
-  /**
-   * Get the default http request header, currently only ua, cookie
-   * @static
-   */
-  static getDefaultHeaders() {
-    const headers = {
+  static getDefaultHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
       'User-Agent': navigator.userAgent,
     };
     if (document.cookie) {
@@ -63,23 +75,14 @@ export default class Network extends BaseDomain {
     return headers;
   }
 
-  /**
-   * @public
-   */
-  enable() {
+  enable(): void {
     this.isEnable = true;
     this.cacheRequest.forEach(data => this.send(data));
     this.reportImageNetwork();
   }
 
-  /**
-   * Get network response content
-   * @public
-   * @param {Object} param
-   * @param {Number} param.requestId
-   */
-  getResponseBody({ requestId }) {
-    let body = '';
+  getResponseBody({ requestId }: { requestId: number }): { body: any; base64Encoded: boolean } {
+    let body: any = '';
     let base64Encoded = false;
     const response = this.responseData.get(requestId);
 
@@ -93,55 +96,33 @@ export default class Network extends BaseDomain {
     return { body, base64Encoded };
   }
 
-  /**
-   * @public
-   */
-  getCookies() {
+  getCookies(): { cookies: Array<{ name: string; value: string }> } {
     const cookies = jsCookie.get();
     return {
       cookies: Object.keys(cookies).map(name => ({ name, value: cookies[name] }))
     };
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {String} param.name cookie name
-   */
-  deleteCookies({ name }) {
+  deleteCookies({ name }: { name: string }): void {
     jsCookie.remove(name, { path: '/' });
   }
 
-  /**
-   * @public
-   * @param {Object} param
-   * @param {String} param.name cookie name
-   * @param {String} param.value cookie value
-   * @param {String} param.path path
-   */
-  setCookie({ name, value, path }) {
+  setCookie({ name, value, path }: { name: string; value: string; path?: string }): void {
     jsCookie.set(name, value, { path });
   }
 
-  /**
-   * Get the unique id of the request
-   * @private
-   */
-  getRequestId() {
+  private getRequestId(): number {
     this.requestId += 1;
     return this.requestId;
   }
 
-  /**
-   * Intercept XMLHttpRequest request
-   * @private
-   */
-  hookXhr() {
+  private hookXhr(): void {
     const instance = this;
     const xhrSend = XMLHttpRequest.prototype.send;
     const xhrOpen = XMLHttpRequest.prototype.open;
     const xhrSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
-    XMLHttpRequest.prototype.open = function (...params) {
+
+    XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, ...params: any[]) {
       const [method, url] = params;
       this.$$request = {
         method,
@@ -150,13 +131,13 @@ export default class Network extends BaseDomain {
         headers: Network.getDefaultHeaders(),
       };
 
-      xhrOpen.apply(this, params);
+      xhrOpen.apply(this, params as any);
     };
 
-    XMLHttpRequest.prototype.send = function (data) {
+    XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, data?: any) {
       xhrSend.call(this, data);
 
-      const request = this.$$request;
+      const request = this.$$request!;
       const { requestId, url, method } = request;
       if (method.toLowerCase() === 'post') {
         request.postData = data;
@@ -197,12 +178,12 @@ export default class Network extends BaseDomain {
       this.addEventListener('load', () => {
         if (this.responseType === '' || this.responseType === 'text') {
           // Cache the response result after the request ends, which will be used when getResponseBody
-          instance.responseData.set(this.$$request.requestId, this.responseText);
+          instance.responseData.set(this.$$request!.requestId, this.responseText);
         }
       });
     };
 
-    XMLHttpRequest.prototype.setRequestHeader = function (key, value) {
+    XMLHttpRequest.prototype.setRequestHeader = function (this: XMLHttpRequest, key: string, value: string) {
       if (this.$$request) {
         this.$$request.headers[key] = String(value);
       }
@@ -210,20 +191,16 @@ export default class Network extends BaseDomain {
     };
   }
 
-  /**
-   * Intercept Fetch requests
-   * @private
-   */
-  hookFetch() {
+  private hookFetch(): void {
     const instance = this;
-    window.fetch = function (request, initConfig = {}) {
-      let url;
-      let method;
-      let data = '';
+    window.fetch = function (request: RequestInfo, initConfig: RequestInit = {}) {
+      let url: string;
+      let method: string;
+      let data: any = '';
       // When request is a string, it is the requested url
       if (typeof request === 'string' || request instanceof URL) {
-        url = request;
-        method = initConfig.method || 'get';
+        url = request.toString();
+        method = (initConfig.method || 'get');
         data = initConfig.body;
       } else {
         // Otherwise it is a Request object
@@ -232,7 +209,7 @@ export default class Network extends BaseDomain {
 
       url = getAbsolutePath(url);
       const requestId = instance.getRequestId();
-      const sendRequest = {
+      const sendRequest: SendRequest = {
         url,
         method,
         requestId,
@@ -256,18 +233,18 @@ export default class Network extends BaseDomain {
         }
       });
 
-      let oriResponse;
+      let oriResponse: Response;
       return originFetch(request, initConfig).then((response) => {
         // Temporarily save the raw response to the request
         oriResponse = response;
 
         const { headers, status, statusText } = response;
-        const responseHeaders = {};
+        const responseHeaders: Record<string, string> = {};
         let headersText = '';
         headers.forEach((val, key) => {
-          key = key2UpperCase(key);
-          responseHeaders[key] = val;
-          headersText += `${key}: ${val}\r\n`;
+          const upperKey = key2UpperCase(key);
+          responseHeaders[upperKey] = val;
+          headersText += `${upperKey}: ${val}\r\n`;
         });
 
         instance.sendNetworkEvent({
@@ -282,7 +259,7 @@ export default class Network extends BaseDomain {
           encodedDataLength: Number(headers.get('Content-Length')),
         });
 
-        const contentType = headers.get('Content-Type') || "";
+        const contentType = headers.get('Content-Type') || '';
         if (['application/json', 'application/javascript', 'text/plain', 'text/html', 'text/css'].some(type => contentType.includes(type))) {
           return response.clone().text();
         }
@@ -302,17 +279,13 @@ export default class Network extends BaseDomain {
           });
           throw error;
         });
-    };
+    } as typeof window.fetch;
   }
 
-  /**
-   * @private
-   * report image request for Network panel
-   */
-  reportImageNetwork() {
-    const imgUrls = new Set();
+  private reportImageNetwork(): void {
+    const imgUrls = new Set<string>();
 
-    const reportNetwork = (urls) => {
+    const reportNetwork = (urls: string[]): void => {
       urls.forEach(async (url) => {
         const requestId = this.getRequestId();
 
@@ -355,11 +328,11 @@ export default class Network extends BaseDomain {
       });
     };
 
-    const getImageUrls = () => {
-      const urls = [];
+    const getImageUrls = (): string[] => {
+      const urls: string[] = [];
       Object.values(document.images).forEach(image => {
         const url = image.getAttribute('src');
-        if (!imgUrls.has(url)) {
+        if (url && !imgUrls.has(url)) {
           imgUrls.add(url);
           urls.push(url);
         }
@@ -367,7 +340,7 @@ export default class Network extends BaseDomain {
       return urls;
     };
 
-    const observerBodyMutation = () => {
+    const observerBodyMutation = (): void => {
       const observer = new MutationObserver(() => {
         const urls = getImageUrls();
         if (urls.length) {
@@ -385,10 +358,7 @@ export default class Network extends BaseDomain {
     observerBodyMutation();
   }
 
-  /**
-   * @private
-   */
-  sendNetworkEvent(params) {
+  private sendNetworkEvent(params: NetworkEventParams): void {
     const {
       requestId, headers, headersText, type, url,
       status, statusText, encodedDataLength,
@@ -421,4 +391,4 @@ export default class Network extends BaseDomain {
       });
     }, 10);
   }
-};
+}

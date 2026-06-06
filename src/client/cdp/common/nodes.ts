@@ -1,26 +1,49 @@
 import { IGNORE_NODE } from './constant';
 import { isElement } from './utils';
 
+interface PseudoElementInfo {
+  pseudoType: string;
+  nodeId: number;
+  nodeName: string;
+  nodeType: number;
+  nodeValue: string | null;
+  backendNodeId: number;
+  childNodeCount: number;
+  attributes: string[];
+}
+
+interface NodeInfo {
+  nodeId: number;
+  nodeType: number;
+  nodeName: string;
+  localName: string;
+  nodeValue: string | null;
+  backendNodeId: number;
+  childNodeCount: number;
+  attributes?: string[];
+  parentId?: number;
+  children?: NodeInfo[];
+  pseudoElements?: PseudoElementInfo[];
+}
+
 class Nodes {
   // DOM node id collection
-  nodeIds = new Map();
+  nodeIds = new Map<Node, number>();
 
   // DOM node collection
-  nodes = new Map();
+  nodes = new Map<number, Node>();
 
-  hasRequestedChildNode = new Set();
+  hasRequestedChildNode = new Set<number>();
 
   currentId = 0;
 
   /**
    * Is it a node
-   * @public
-   * @param {HTMLElement} node DOM
    */
-  isNode(node) {
+  isNode(node: Node | null): boolean {
     if (!node) return false;
     // Ignore DOM nodes for debugging
-    if (node.getAttribute && IGNORE_NODE.includes(node.getAttribute('class'))) return false;
+    if ((node as Element).getAttribute && IGNORE_NODE.includes((node as Element).getAttribute('class') || '')) return false;
     // non-text node
     if (node.nodeType !== Node.TEXT_NODE) return true;
     // non-empty text node
@@ -28,38 +51,29 @@ class Nodes {
     return false;
   }
 
-  create(nodeId, node) {
+  create(nodeId: number, node: Node): void {
     this.nodeIds.set(node, nodeId);
     this.nodes.set(nodeId, node);
   }
 
-  init() {
+  init(): void {
     this.nodeIds.clear();
     this.nodes.clear();
     this.hasRequestedChildNode.clear();
   }
 
-  hasNode(node) {
+  hasNode(node: Node): boolean {
     return this.nodeIds.has(node);
   }
 
-  /**
-   * @public
-   * @param {Number} nodeId Unique id of DOM
-   */
-  getNodeById(nodeId) {
+  getNodeById(nodeId: number): Node | undefined {
     return this.nodes.get(nodeId);
   }
 
-  /**
-   * @public
-   * @param {HTMLElement} node DOM
-   */
-  getIdByNode(node) {
+  getIdByNode(node: Node): number {
     let nodeId = this.nodeIds.get(node);
     if (nodeId) return nodeId;
 
-    // eslint-disable-next-line
     nodeId = this.currentId++;
     this.create(nodeId, node);
 
@@ -68,14 +82,12 @@ class Nodes {
 
   /**
    * Collect child nodes
-   * @public
-   * @param {Element} node DOM node
-   * @param {Number} depth child node depth
    */
-  collectNodes(node, depth = 2) {
+  collectNodes(node: Node, depth = 2): NodeInfo {
     const nodeId = this.getIdByNode(node);
-    const { nodeType, nodeName, localName, nodeValue, parentNode, attributes, childNodes } = node;
-    const res = {
+    const { nodeType, nodeName, nodeValue, parentNode, childNodes } = node;
+    const localName = (node as Element).localName || node.nodeName;
+    const res: NodeInfo = {
       nodeId,
       nodeType,
       nodeName,
@@ -85,8 +97,9 @@ class Nodes {
       childNodeCount: childNodes.length
     };
 
-    if (attributes) {
-      res.attributes = Array.from(attributes).reduce((pre, curr) => pre.concat(curr.name, curr.value), []);
+    if ((node as Element).attributes) {
+      const attributes = (node as Element).attributes;
+      res.attributes = Array.from(attributes).reduce<string[]>((pre, curr) => pre.concat(curr.name, curr.value), []);
     }
 
     if (parentNode) {
@@ -98,9 +111,10 @@ class Nodes {
     }
 
     if (isElement(node)) {
-      const beforeContent = window.getComputedStyle(node, '::before').content;
-      const afterContent = window.getComputedStyle(node, '::after').content;
-      const pseudoTypes = [];
+      const element = node as Element;
+      const beforeContent = window.getComputedStyle(element, '::before').content;
+      const afterContent = window.getComputedStyle(element, '::after').content;
+      const pseudoTypes: string[] = [];
       if (beforeContent !== 'none') {
         pseudoTypes.push('before');
       }
@@ -113,7 +127,7 @@ class Nodes {
           const pseudoNodeId = this.getIdByNode({
             nodeName: pseudoNodeName,
             parentNode: node,
-          });
+          } as any);
           return {
             pseudoType,
             nodeId: pseudoNodeId,
@@ -133,30 +147,25 @@ class Nodes {
 
   /**
    * Collect DOM child elements
-   * @public
-   * @param {HTMLElement} node DOM
-   * @param {Number} depth
    */
-  getChildNodes(node, depth = 1) {
+  getChildNodes(node: Node, depth = 1): NodeInfo[] {
     return Array.from(node.childNodes)
-      .filter(this.isNode)
+      .filter(child => this.isNode(child))
       .map(childNode => this.collectNodes(childNode, depth - 1));
   }
 
   /**
    * Get the former sibling node of DOM
-   * @public
-   * @param {HTMLElement} node DOM
    */
-  getPreviousNode(node) {
+  getPreviousNode(node: Node): Node | undefined {
     let previousNode = node.previousSibling;
     if (!previousNode) return;
 
-    while (!this.isNode(previousNode) && previousNode.previousSibling) {
-      previousNode = previousNode.previousSibling;
+    while (!this.isNode(previousNode) && previousNode!.previousSibling) {
+      previousNode = previousNode!.previousSibling;
     }
 
-    return previousNode;
+    return previousNode || undefined;
   }
 }
 

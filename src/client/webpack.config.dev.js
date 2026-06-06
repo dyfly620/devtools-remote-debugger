@@ -8,7 +8,7 @@ const cwd = process.cwd();
 module.exports = [
   {
     mode: 'development',
-    entry: './src/client/cdp/index.js',
+    entry: './src/client/cdp/index.ts',
     output: {
       filename: 'cdp.js',
       path: path.resolve(cwd, './dist'),
@@ -16,10 +16,18 @@ module.exports = [
     module: {
       rules: [
         {
+          test: /\.ts$/,
+          use: 'ts-loader',
+          exclude: /node_modules/,
+        },
+        {
           test: /\.js$/,
           loader: 'babel-loader',
         },
       ],
+    },
+    resolve: {
+      extensions: ['.ts', '.js'],
     },
     devtool: 'inline-source-map',
     plugins: [
@@ -30,13 +38,18 @@ module.exports = [
   },
   {
     mode: 'development',
-    entry: './src/client/page/app.js',
+    entry: './src/client/page/app.ts',
     output: {
       filename: 'index.js',
       path: path.resolve(cwd, './dist/page'),
     },
     module: {
       rules: [
+        {
+          test: /\.ts$/,
+          use: 'ts-loader',
+          exclude: /node_modules/,
+        },
         {
           test: /\.vue$/,
           loader: 'vue-loader',
@@ -48,7 +61,7 @@ module.exports = [
       ],
     },
     resolve: {
-      extensions: ['.js', '.vue', '.json'],
+      extensions: ['.ts', '.js', '.vue', '.json'],
     },
     devtool: 'eval-source-map',
     devServer: {

@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { createI18n } from 'vue-i18n';
 import { ElTable, ElTableColumn, ElButton, ElSwitch, ElAlert } from 'element-plus';
+// @ts-expect-error - no type declarations for CSS
 import 'element-plus/dist/index.css';
 import Index from './components/index.vue';
 import Usage from './components/usage.vue';

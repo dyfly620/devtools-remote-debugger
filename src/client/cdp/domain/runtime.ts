@@ -1,21 +1,28 @@
 import ErrorStackParser from 'error-stack-parser';
+import callsite from 'callsite';
 import { objectFormat, objectRelease, getObjectProperties, getObjectById } from '../common/remoteObject';
 import { isSafari } from '../common/utils';
 import BaseDomain from './domain';
 import { Event } from './protocol';
 
-const callsite = require('callsite');
+interface CallFrame {
+  functionName: string;
+  lineNumber?: number;
+  columnNumber?: number;
+  url: string;
+  [key: string]: any;
+}
 
 export default class Runtime extends BaseDomain {
   namespace = 'Runtime';
 
-  cacheConsole = [];
+  cacheConsole: any[] = [];
 
-  cacheError = [];
+  cacheError: any[] = [];
 
   isEnable = false;
 
-  socketSend = (type, data) => {
+  socketSend = (type: 'console' | 'error', data: any): void => {
     if (type === 'console') {
       this.cacheConsole.push(data);
     } else if (type === 'error') {
@@ -26,38 +33,27 @@ export default class Runtime extends BaseDomain {
     }
   };
 
-  /**
-   * set Chrome Command Line Api
-   *
-   * In older versions of Electron,
-   * you might see the printout of the following function as:
-   * ```js
-   * // console.log($x):
-   * $x(xpath, [startNode]) { [Command Line API] }
-   * ```
-   * @static
-   */
-  static setCommandLineApi() {
+  static setCommandLineApi(): void {
     window.$_ = undefined;
 
-    if (typeof window.clear !== 'function') {
-      window.clear = () => console.clear();
+    if (typeof (window as any).clear !== 'function') {
+      (window as any).clear = () => console.clear();
     }
 
-    if (typeof window.copy !== 'function') {
-      window.copy = object => {
-        function fallbackCopyTextToClipboard(text) {
+    if (typeof (window as any).copy !== 'function') {
+      (window as any).copy = (object: any) => {
+        function fallbackCopyTextToClipboard(text: string) {
           if (typeof document !== 'object') {
             console.error('Copy text failed, running environment is not a browser');
           }
           const textArea = document.createElement('textarea');
           textArea.value = text;
           textArea.style.position = 'fixed';
-          textArea.style.top = 0;
-          textArea.style.left = 0;
+          textArea.style.top = '0';
+          textArea.style.left = '0';
           textArea.style.width = '1px';
           textArea.style.height = '1px';
-          textArea.style.padding = 0;
+          textArea.style.padding = '0';
           textArea.style.border = 'none';
           textArea.style.outline = 'none';
           textArea.style.boxShadow = 'none';
@@ -84,53 +80,48 @@ export default class Runtime extends BaseDomain {
       };
     }
 
-    if (typeof window.dir !== 'function') {
-      window.dir = object => console.dir(object);
+    if (typeof (window as any).dir !== 'function') {
+      (window as any).dir = (object: any) => console.dir(object);
     }
 
-    if (typeof window.dirxml !== 'function') {
-      window.dirxml = object => console.dirxml(object);
+    if (typeof (window as any).dirxml !== 'function') {
+      (window as any).dirxml = (object: any) => console.dirxml(object);
     }
 
-    if (typeof window.keys !== 'function') {
-      window.keys = object => Object.keys(object);
+    if (typeof (window as any).keys !== 'function') {
+      (window as any).keys = (object: any) => Object.keys(object);
     }
 
-    if (typeof window.values !== 'function') {
-      window.values = object => Object.values(object);
+    if (typeof (window as any).values !== 'function') {
+      (window as any).values = (object: any) => Object.values(object);
     }
 
-    if (typeof window.table !== 'function') {
-      window.table = object => console.table(object);
+    if (typeof (window as any).table !== 'function') {
+      (window as any).table = (object: any) => console.table(object);
     }
   }
 
-  constructor(options) {
+  constructor(options: { socket: any }) {
     super(options);
     this.hookConsole();
     this.listenError();
   }
 
-  /**
-   * Get call stack
-   * @static
-   * @param {Error} error
-   */
-  static getCallFrames(error) {
-    let callFrames = [];
+  static getCallFrames(error?: Error): CallFrame[] {
+    let callFrames: any[] = [];
 
     // Helper function to process stack frames
-    const processFrames = (frames) => {
+    const processFrames = (frames: any[]): CallFrame[] => {
       return frames.map(frame => ({
         ...frame,
-        url: frame.fileName || frame.getFileName?.() || '',
+        url: frame.fileName || (typeof frame.getFileName === 'function' ? frame.getFileName() : '') || '',
       }));
     };
 
     // Case 1: Error object provided
     if (error) {
       callFrames = ErrorStackParser.parse(error);
-    } else if (Error.captureStackTrace) {
+    } else if ((Error as any).captureStackTrace) {
       // Case 2: Error.captureStackTrace available
       const errorStack = callsite();
       if (typeof errorStack === 'string') {
@@ -138,7 +129,7 @@ export default class Runtime extends BaseDomain {
         callFrames = ErrorStackParser.parse(new Error(errorStack));
       } else {
         // V8's stack returns an array
-        callFrames = errorStack.map(val => ({
+        callFrames = errorStack.map((val: any) => ({
           functionName: val.getFunctionName(),
           lineNumber: val.getLineNumber(),
           columnNumber: val.getColumnNumber(),
@@ -153,10 +144,7 @@ export default class Runtime extends BaseDomain {
     return processFrames(callFrames);
   }
 
-  /**
-   * @public
-   */
-  enable() {
+  enable(): void {
     this.isEnable = true;
     this.cacheConsole.forEach(data => this.send(data));
     this.cacheError.forEach(data => this.send(data));
@@ -174,14 +162,7 @@ export default class Runtime extends BaseDomain {
     Runtime.setCommandLineApi();
   }
 
-  /**
-   * script execution
-   * @public
-   * @param {Object} param
-   * @param {String} param.expression expression string
-   * @param {Boolean} param.generatePreview whether to generate a preview
-   */
-  evaluate({ expression, generatePreview }) {
+  evaluate({ expression, generatePreview }: { expression: string; generatePreview?: boolean }): { result: ReturnType<typeof objectFormat> } {
     // Modifying the scope to the global scope enables variables defined
     // with var to be accessible globally.
     // eslint-disable-next-line
@@ -193,30 +174,44 @@ export default class Runtime extends BaseDomain {
     };
   }
 
-  /**
-   * Get object properties
-   * @public
-   */
-  getProperties(params) {
+  getProperties(params: any): { result: ReturnType<typeof getObjectProperties> } {
     return {
       result: getObjectProperties(params),
     };
   }
 
-  /**
-   * release object
-   * @public
-   */
-  releaseObject(params) {
+  releaseObject(params: { objectId: string }): void {
     objectRelease(params);
   }
 
-  /**
-   * Intercept method of console object
-   * @private
-   */
-  hookConsole() {
-    const methods = {
+  callFunctionOn({ functionDeclaration, objectId, arguments: args, silent }: {
+    functionDeclaration: string;
+    objectId?: string;
+    arguments?: any[];
+    silent?: boolean;
+  }): any {
+    /* eslint-disable-next-line no-eval, @typescript-eslint/no-unsafe-function-type */
+    const fun: Function = eval(`(() => ${functionDeclaration})()`);
+    if (Array.isArray(args)) {
+      args = args.map(v => {
+        if ('value' in v) return v.value;
+        if ('objectId' in v) return getObjectById(v.objectId);
+        return undefined;
+      });
+    }
+    if (silent === true) {
+      try {
+        return fun.apply(objectId ? getObjectById(objectId) : null, args);
+      } catch {
+        // silently ignore
+      }
+    } else {
+      return fun.apply(objectId ? getObjectById(objectId) : null, args);
+    }
+  }
+
+  private hookConsole(): void {
+    const methods: Record<string, string> = {
       log: 'log',
       debug: 'debug',
       info: 'info',
@@ -230,16 +225,11 @@ export default class Runtime extends BaseDomain {
       group: 'startGroup',
       groupCollapsed: 'startGroupCollapsed',
       groupEnd: 'endGroup',
-      // assert: 'assert',
-      // profile: 'profile',
-      // profileEnd: 'profileEnd',
-      // count: 'count',
-      // timeEnd: 'timeEnd',
     };
 
     Object.keys(methods).forEach((key) => {
-      const nativeConsoleFunc = window.console[key];
-      window.console[key] = (...args) => {
+      const nativeConsoleFunc = (window.console as any)[key];
+      (window.console as any)[key] = (...args: any[]) => {
         nativeConsoleFunc?.(...args);
         const data = {
           method: Event.consoleAPICalled,
@@ -259,12 +249,8 @@ export default class Runtime extends BaseDomain {
     });
   }
 
-  /**
-   * Global error monitor
-   * @private
-   */
-  listenError() {
-    const exceptionThrown = (error) => {
+  private listenError(): void {
+    const exceptionThrown = (error?: Error | any) => {
       let desc = error ? error.stack : 'Script error.';
 
       if (isSafari() && error) {
@@ -295,24 +281,4 @@ export default class Runtime extends BaseDomain {
     window.addEventListener('error', e => exceptionThrown(e.error));
     window.addEventListener('unhandledrejection', e => exceptionThrown(e.reason));
   }
-
-  callFunctionOn({ functionDeclaration, objectId, arguments: args, silent }) {
-    /** @type {Function} */
-    // eslint-disable-next-line no-eval
-    const fun = eval(`(() => ${functionDeclaration})()`);
-    if (Array.isArray(args)) {
-      args = args.map(v => {
-        if ('value' in v) return v.value;
-        if ('objectId' in v) return getObjectById(v.objectId);
-        return undefined;
-      });
-    }
-    if (silent === true) {
-      try {
-        return fun.apply(objectId ? getObjectById(objectId) : null, args);
-      } catch (error) { }
-    } else {
-      return fun.apply(objectId ? getObjectById(objectId) : null, args);
-    }
-  }
-};
+}

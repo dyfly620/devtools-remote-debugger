@@ -12,20 +12,15 @@ import ScreenPreview from './screen-preview';
 import protocol from './protocol';
 
 export default class ChromeDomain {
-  protocol = {};
+  protocol: Record<string, (...args: any[]) => any> = {};
 
-  constructor(options) {
+  constructor(options: { socket: any }) {
     this.registerProtocol(options);
     this.proxyAppendChild();
     this.proxyEventListener();
   }
 
-  /**
-   * Execution CDP method
-   * @public
-   * @param {Object} message socket data
-   */
-  execute(message = {}) {
+  execute(message: { id: number; method: string; params?: any } = { id: 0, method: '' }): { id: number; result?: any } {
     const { id, method, params } = message;
     const methodCall = this.protocol[method];
     if (typeof methodCall !== 'function') return { id };
@@ -33,11 +28,8 @@ export default class ChromeDomain {
     return { id, result: methodCall(params) };
   }
 
-  /**
-   * @private
-   */
-  registerProtocol(options) {
-    const domains = [
+  private registerProtocol(options: { socket: any }): void {
+    const domains: any[] = [
       new Dom(options),
       new DomDebugger(options),
       new DomStorage(options),
@@ -53,22 +45,23 @@ export default class ChromeDomain {
 
     domains.forEach((domain) => {
       const { namespace } = domain;
-      const cmds = protocol[namespace];
-      cmds.forEach((cmd) => {
+      const cmds = (protocol as any)[namespace];
+      cmds.forEach((cmd: string) => {
         this.protocol[`${namespace}.${cmd}`] = domain[cmd].bind(domain);
       });
     });
   }
 
-  proxyAppendChild() {
+  private proxyAppendChild(): void {
     const originHeadAppendChild = HTMLHeadElement.prototype.appendChild;
     const originBodyAppendChild = HTMLBodyElement.prototype.appendChild;
 
-    const fetchSource = (node) => {
-      const tag = node?.tagName?.toLowerCase();
+    const fetchSource = (node: Node) => {
+      const el = node as Element;
+      const tag = el?.tagName?.toLowerCase();
       if (tag === 'link') {
-        const url = node.getAttribute('href');
-        const rel = node.getAttribute('rel');
+        const url = el.getAttribute('href');
+        const rel = el.getAttribute('rel');
         if (url && (!rel || rel === 'stylesheet')) {
           setTimeout(() => {
             this.protocol['CSS.getDynamicLink'](url);
@@ -77,7 +70,7 @@ export default class ChromeDomain {
       }
 
       if (tag === 'script') {
-        const url = node.getAttribute('src');
+        const url = el.getAttribute('src');
         if (url) {
           setTimeout(() => {
             this.protocol['Debugger.getDynamicScript'](url);
@@ -86,31 +79,29 @@ export default class ChromeDomain {
       }
     };
 
-    HTMLHeadElement.prototype.appendChild = function (node) {
-      const result = originHeadAppendChild.call(this, node);
+    HTMLHeadElement.prototype.appendChild = function <T extends Node>(this: HTMLHeadElement, node: T): T {
+      const result = originHeadAppendChild.call(this, node) as T;
       fetchSource(node);
       return result;
     };
-    HTMLBodyElement.prototype.appendChild = function (node) {
-      const result = originBodyAppendChild.call(this, node);
+    HTMLBodyElement.prototype.appendChild = function <T extends Node>(this: HTMLBodyElement, node: T): T {
+      const result = originBodyAppendChild.call(this, node) as T;
       fetchSource(node);
       return result;
     };
   }
 
-  /**
-   * inject getEventListeners
-   */
-  proxyEventListener() {
+  private proxyEventListener(): void {
     const originalAddEventListener = EventTarget.prototype.addEventListener;
     const originalRemoveEventListener = EventTarget.prototype.removeEventListener;
     const eventListenersMap = DomDebugger.eventListenersMap;
 
-    /**
-     * @type { EventTarget['addEventListener'] }
-     */
-    EventTarget.prototype.addEventListener = function(type, listener, optionOrUseCapture) {
-      let options;
+    EventTarget.prototype.addEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      optionOrUseCapture?: boolean | AddEventListenerOptions
+    ) {
+      let options: AddEventListenerOptions;
       if (typeof optionOrUseCapture === 'object' && optionOrUseCapture !== null) {
         options = optionOrUseCapture;
       } else {
@@ -121,7 +112,7 @@ export default class ChromeDomain {
       if (!targetListeners[type]) {
         targetListeners[type] = [];
       }
-      const data = {
+      const data: any = {
         listener,
         once: options.once || false,
         passive: options.passive || false,
@@ -134,8 +125,6 @@ export default class ChromeDomain {
         const callFrame = callFrames[i];
         if (callFrame.lineNumber && callFrame.columnNumber) {
           Object.assign(data, {
-            // todo: get scriptId
-            // scriptId: '1',
             lineNumber: callFrame.lineNumber,
             columnNumber: callFrame.columnNumber
           });
@@ -148,11 +137,12 @@ export default class ChromeDomain {
       return originalAddEventListener.apply(this, [type, listener, options]);
     };
 
-    /**
-     * @type { EventTarget['removeEventListener'] }
-     */
-    EventTarget.prototype.removeEventListener = function(type, listener, optionOrUseCapture) {
-      let options;
+    EventTarget.prototype.removeEventListener = function (
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      optionOrUseCapture?: boolean | EventListenerOptions
+    ) {
+      let options: EventListenerOptions;
       if (typeof optionOrUseCapture === 'object' && optionOrUseCapture !== null) {
         options = optionOrUseCapture;
       } else {
@@ -161,10 +151,10 @@ export default class ChromeDomain {
 
       const targetListeners = eventListenersMap.get(this) || {};
       if (targetListeners[type]) {
-        const index = targetListeners[type].findIndex(item =>
+        const index = targetListeners[type].findIndex((item: any) =>
           item.listener === listener &&
-          item.once === (options.once || false) &&
-          item.passive === (options.passive || false) &&
+          item.once === ((options as any).once || false) &&
+          item.passive === ((options as any).passive || false) &&
           item.capture === (options.capture || false)
         );
         if (index > -1) {
@@ -179,10 +169,10 @@ export default class ChromeDomain {
       return originalRemoveEventListener.apply(this, [type, listener, options]);
     };
 
-    window.getEventListeners = function(target) {
+    (window as any).getEventListeners = function (target: EventTarget) {
       if (eventListenersMap.has(target)) {
-        return Object.fromEntries(Object.entries(eventListenersMap.get(target)).map(([key, value]) => {
-          return [key, value.map(v => {
+        return Object.fromEntries(Object.entries(eventListenersMap.get(target)!).map(([key, value]) => {
+          return [key, value.map((v: any) => {
             const { capture, listener, once, passive, type } = v;
             return { capture, listener, once, passive, type };
           })];
@@ -192,4 +182,4 @@ export default class ChromeDomain {
       }
     };
   }
-};
+}

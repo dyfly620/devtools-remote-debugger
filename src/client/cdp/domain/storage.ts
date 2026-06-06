@@ -1,13 +1,11 @@
 import BaseDomain from './domain';
+
 export default class Storage extends BaseDomain {
   namespace = 'Storage';
 
-  /**
-   * @public
-   */
-  getStorageKeyForFrame() {
+  getStorageKeyForFrame(): { storageKey: string } {
     return {
       storageKey: location.origin
     };
   }
-};
+}
